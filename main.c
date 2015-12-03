@@ -24,7 +24,80 @@ void createThread(int);
 pthread_t ntid[5]; 
 pthread_mutex_t lock[5];
 
+int main(int argc, char* argv[])
+{
+    struct sockaddr_in clientaddr;
+    socklen_t addrlen;
+    char c;
+    int tmp=0;
+    while(tmp<5){
+    	pthread_mutex_init(&lock[tmp],NULL);
+    	pthread_mutex_lock(&lock[tmp]);
+    	createThread(tmp);
+    	tmp++;
+    }
+    //дефолтные значения
+    char PORT[6];
+    ROOT = getenv("PWD");//возвращает значение переменной окружения
+    strcpy(PORT,"10000"); //копирование из второй строки в первую. возвращает указатель на результирующую строку
 
+    int slot=0;
+
+    //парсим аргументы
+    while ((c = getopt (argc, argv, "p:r:h")) != -1)
+        switch (c)
+        {
+            case 'r':
+                ROOT = malloc(strlen(optarg));//распределяет байты в памяти и возвращает указатель на память. strlen - длина строки, optarg - строковое значение параметра
+                strcpy(ROOT,optarg);
+                break;
+            case 'p':
+                strcpy(PORT,optarg);
+                break;
+	    case 'h':
+		helping();
+            case '?':
+                fprintf(stderr,"Wrong arguments given!!!\n");
+                exit(1);
+            default:
+                exit(1);
+        }
+    
+    //установка всех элементов в -1
+    int i;
+    for (i=0; i<CLIENTMAX; i++)
+        clients[i]=-1;
+    startServer(PORT);
+    printf("Server started at port no. %s%s%s with root directory as %s%s%s\n","\033[92m",PORT,"\033[0m","\033[92m",ROOT,"\033[0m");
+    int j=0;
+    // прием соединений
+    while (1)
+    {
+        addrlen = sizeof(clientaddr);
+        clients[slot] = accept (listenfd, (struct sockaddr *) &clientaddr, &addrlen);//принять соединение на сокете (сокет, адрес другой стороны, длина адреса в байтах)
+        if(j>4)
+		{
+			j=0;
+            int k=0;
+            int coeff=slot/5;
+            while(k<5)
+			{
+				if(pthread_mutex_trylock(&lock[k])==0)
+					createThread(k+5*coeff);
+                k++;
+			}
+		}
+        if (clients[slot]<0)
+            error ("accept() error");
+        else
+        {
+                pthread_mutex_unlock(&lock[j]);        
+        }
+		j++;
+        while (clients[slot]!=-1) slot = (slot+1)%CLIENTMAX;
+    }
+    return 0;
+}
 //помощь
 void helping()
 {
